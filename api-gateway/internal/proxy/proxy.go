@@ -8,16 +8,20 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/brandoyts/api-gateway/internal/telemetry"
 )
 
 type ProxyHandler struct {
-	Routes map[string]url.URL
-	Client *http.Client
+	Telemetry telemetry.TelemetryProvider
+	Routes    map[string]url.URL
+	Client    *http.Client
 }
 
-func NewProxyHandler(requestTimeout time.Duration) *ProxyHandler {
+func NewProxyHandler(telemetryProvider telemetry.TelemetryProvider, requestTimeout time.Duration) *ProxyHandler {
 	return &ProxyHandler{
-		Routes: make(map[string]url.URL),
+		Telemetry: telemetryProvider,
+		Routes:    make(map[string]url.URL),
 		Client: &http.Client{
 			Timeout: requestTimeout,
 		},
@@ -37,6 +41,9 @@ func (p *ProxyHandler) AddRoute(prefix string, backendUrl string) error {
 
 func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
+
+	_, span := p.Telemetry.TraceStart(r.Context(), "accessing internal service")
+	defer span.End()
 
 	var targetUrl *url.URL
 	var longestPrefix string

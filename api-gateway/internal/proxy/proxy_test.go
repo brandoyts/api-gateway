@@ -10,8 +10,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/brandoyts/api-gateway/config"
+	"github.com/brandoyts/api-gateway/internal/telemetry"
 	"github.com/stretchr/testify/assert"
 )
+
+func newTestProxyHandler(t *testing.T, timeout time.Duration) *ProxyHandler {
+	t.Helper()
+
+	// use noop telemetry for tests
+	telem, err := telemetry.NewNoopTelemetry(config.TelemetryConfiguration{})
+	if err != nil {
+		t.Fatalf("failed to create noop telemetry: %v", err)
+	}
+
+	return NewProxyHandler(telem, timeout)
+}
 
 func TestAddRoute(t *testing.T) {
 	tests := []struct {
@@ -32,7 +46,7 @@ func TestAddRoute(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			proxyHandler := NewProxyHandler(10 * time.Second)
+			proxyHandler := newTestProxyHandler(t, 10*time.Second)
 			err := proxyHandler.AddRoute(tc.prefix, tc.url)
 
 			if tc.expectToFail {
@@ -48,7 +62,7 @@ func TestAddRoute(t *testing.T) {
 }
 
 func TestServeHTTP_NoRouteFound(t *testing.T) {
-	proxyHandler := NewProxyHandler(5 * time.Second)
+	proxyHandler := newTestProxyHandler(t, 5*time.Second)
 
 	req := httptest.NewRequest(http.MethodGet, "/unknown", nil)
 	rr := httptest.NewRecorder()
@@ -60,15 +74,14 @@ func TestServeHTTP_NoRouteFound(t *testing.T) {
 }
 
 func TestServeHTTP_BackendSuccess(t *testing.T) {
-	// Mock backend server
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test", "ok")
-		w.WriteHeader(http.StatusTeapot) // 418
-		w.Write([]byte("backend says hi"))
+		w.WriteHeader(http.StatusTeapot)
+		_, _ = w.Write([]byte("backend says hi"))
 	}))
 	defer backend.Close()
 
-	proxyHandler := NewProxyHandler(5 * time.Second)
+	proxyHandler := newTestProxyHandler(t, 5*time.Second)
 	_ = proxyHandler.AddRoute("/api", backend.URL)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/hello", nil)
@@ -82,10 +95,10 @@ func TestServeHTTP_BackendSuccess(t *testing.T) {
 }
 
 func TestServeHTTP_BackendError(t *testing.T) {
-	// Point to a non-routable address
-	badURL := "http://127.0.0.1:65534" // port unlikely to be open
+	// non-routable port
+	badURL := "http://127.0.0.1:65534"
 
-	proxyHandler := NewProxyHandler(2 * time.Second)
+	proxyHandler := newTestProxyHandler(t, 2*time.Second)
 	_ = proxyHandler.AddRoute("/fail", badURL)
 
 	req := httptest.NewRequest(http.MethodGet, "/fail/boom", nil)
@@ -98,7 +111,7 @@ func TestServeHTTP_BackendError(t *testing.T) {
 }
 
 func TestCreateProxyRequest_RewritesCorrectly(t *testing.T) {
-	proxyHandler := NewProxyHandler(5 * time.Second)
+	proxyHandler := newTestProxyHandler(t, 5*time.Second)
 	target, _ := url.Parse("http://backend:9000")
 
 	body := io.NopCloser(bytes.NewBufferString("test-body"))
@@ -108,23 +121,20 @@ func TestCreateProxyRequest_RewritesCorrectly(t *testing.T) {
 	outReq, err := proxyHandler.createProxyRequest(req, target, "/api")
 	assert.NoError(t, err)
 
-	// URL should be rewritten (strip prefix)
 	assert.Equal(t, "http://backend:9000/v1/resource", outReq.URL.String())
 	assert.Equal(t, req.Method, outReq.Method)
 
-	// Headers should be preserved + forwarded headers set
 	assert.Equal(t, req.Header, outReq.Header)
 	assert.Equal(t, "127.0.0.1:12345", outReq.Header.Get("X-Forwarded-For"))
 	assert.Equal(t, req.Host, outReq.Header.Get("X-Forwarded-Host"))
 }
 
 func TestCreateProxyRequest_InvalidURL(t *testing.T) {
-	proxyHandler := NewProxyHandler(5 * time.Second)
+	proxyHandler := newTestProxyHandler(t, 5*time.Second)
 
-	// Bad request with invalid URL
 	badReq := &http.Request{
 		Method: http.MethodGet,
-		URL:    nil, // invalid scheme
+		URL:    nil,
 	}
 
 	target, _ := url.Parse("http://backend:9000")

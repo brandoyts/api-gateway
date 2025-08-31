@@ -1,5 +1,5 @@
-listenAddress: localhost:8000
-requestTimeout: 30s
+listenAddress: :8000
+requestTimeout: 10s
 routes:
   - name: User Service
     prefix: /user
@@ -7,4 +7,4 @@ routes:
 
   - name: Order Service
     prefix: /order
-    backendUrl: http://localhost:6002
+    backendUrl: http://order:6002

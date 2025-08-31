@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"time"
 
 	"github.com/spf13/viper"
@@ -19,22 +18,31 @@ type GatewayConfiguration struct {
 	Routes         []Route       `mapstructure:"routes"`
 }
 
-func LoadGatewayConfiguration() {
+func loadGatewayConfiguration() error {
 	viper.SetConfigFile("./config/gatewayConfig.yml")
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatalf("error on reading gateway configuration file: %v", err)
+		return err
+		// log.Fatalf("error on reading gateway configuration file: %v", err)
 	}
+
+	return nil
 }
 
-func GetGatewayConfiguration() GatewayConfiguration {
-	var config GatewayConfiguration
-
-	err := viper.Unmarshal(&config)
+func NewGatewayConfiguration() (*GatewayConfiguration, error) {
+	err := loadGatewayConfiguration()
 	if err != nil {
-		log.Fatalf("unable to decode gateway configuration into struct: %v", err)
+		return nil, err
 	}
 
-	return config
+	var config GatewayConfiguration
+
+	err = viper.Unmarshal(&config)
+	if err != nil {
+		// log.Fatalf("unable to decode gateway configuration into struct: %v", err)
+		return nil, err
+	}
+
+	return &config, nil
 }
