@@ -5,19 +5,24 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/brandoyts/api-gateway/config"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // NoopTelemetry is a no-op implementation of the TelemetryProvider interface.
 type NoopTelemetry struct {
 	serviceName string
+	prop        propagation.TextMapPropagator
 }
 
 // NewNoopTelemetry creates a new NoopTelemetry instance.
-func NewNoopTelemetry(cfg config.TelemetryConfiguration) (*NoopTelemetry, error) {
-	return &NoopTelemetry{serviceName: cfg.ServiceName}, nil
+func NewNoopTelemetry(cfg TelemetryConfiguration) (*NoopTelemetry, error) {
+	return &NoopTelemetry{
+		serviceName: cfg.ServiceName,
+		// 🔹 no-op propagator (doesn't modify headers)
+		prop: propagation.NewCompositeTextMapPropagator(),
+	}, nil
 }
 
 // GetServiceName returns the service name.
@@ -68,6 +73,11 @@ func (t *NoopTelemetry) MeterInt64Histogram(metric Metric) (metric.Int64Histogra
 // MeterInt64UpDownCounter returns nil.
 func (t *NoopTelemetry) MeterInt64UpDownCounter(metric Metric) (metric.Int64UpDownCounter, error) {
 	return nil, nil
+}
+
+// Propagator returns a no-op propagator.
+func (t *NoopTelemetry) Propagator() propagation.TextMapPropagator {
+	return t.prop
 }
 
 // Shutdown does nothing.

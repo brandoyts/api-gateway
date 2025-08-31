@@ -3,13 +3,13 @@ package proxy
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/brandoyts/api-gateway/internal/telemetry"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type ProxyHandler struct {
@@ -42,7 +42,7 @@ func (p *ProxyHandler) AddRoute(prefix string, backendUrl string) error {
 func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
-	_, span := p.Telemetry.TraceStart(r.Context(), "accessing internal service")
+	ctx, span := p.Telemetry.TraceStart(r.Context(), "APIGatewayProxy")
 	defer span.End()
 
 	var targetUrl *url.URL
@@ -57,25 +57,30 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if targetUrl == nil {
 		http.Error(w, "Service not found", http.StatusNotFound)
-		log.Printf("No route found for %s", r.URL.Path)
+		p.Telemetry.LogInfo("No route found for %s", r.URL.Path)
 		return
 	}
 
 	proxyRequest, err := p.createProxyRequest(r, targetUrl, longestPrefix)
 	if err != nil {
 		http.Error(w, "Error creating proxy request", http.StatusInternalServerError)
-		log.Printf("Error creating proxy request: %v", err)
+		p.Telemetry.LogInfo("Error creating proxy request: %v", err)
 		return
 	}
 
+	//  inject trace context into outbound request headers
+	p.Telemetry.Propagator().Inject(ctx, propagation.HeaderCarrier(proxyRequest.Header))
+
+	// send request to backend
 	proxyResponse, err := p.Client.Do(proxyRequest)
 	if err != nil {
 		http.Error(w, "Backend error", http.StatusBadGateway)
-		log.Printf("Backend error for %s: %v", proxyRequest.URL.String(), err)
+		p.Telemetry.LogInfo("Backend error for %s: %v", proxyRequest.URL.String(), err)
 		return
 	}
 	defer proxyResponse.Body.Close()
 
+	// copy headers from backend response
 	for key, values := range proxyResponse.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
@@ -85,7 +90,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(proxyResponse.StatusCode)
 	io.Copy(w, proxyResponse.Body)
 
-	log.Printf(
+	p.Telemetry.LogInfo(
 		"Proxy request: %s %s -> %s, status: %d, latency: %v",
 		r.Method,
 		r.URL.Path,

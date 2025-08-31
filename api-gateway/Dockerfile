@@ -13,6 +13,8 @@ RUN go mod download
 # Copy the rest of the source
 COPY . .
 
+WORKDIR /app/api-gateway
+
 # Build statically linked binary with security flags
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w -extldflags '-static'" \
@@ -25,7 +27,7 @@ WORKDIR /app
 
 # Copy binary only (no source, no extras)
 COPY --from=builder /app/api-gateway /app/
-COPY config/ /app/config/
+COPY --from=builder /app/config /app/config
 
 # Run as non-root (distroless defaults to this)
 USER nonroot:nonroot

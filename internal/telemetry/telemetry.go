@@ -7,9 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/brandoyts/api-gateway/config"
 	"go.opentelemetry.io/contrib/bridges/otelzap"
+	"go.opentelemetry.io/otel"
 	otelmetric "go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -32,6 +33,8 @@ type TelemetryProvider interface {
 	MeterRequestDuration(next http.Handler) http.Handler
 	MeterRequestsInFlight(next http.Handler) http.Handler
 	Shutdown(ctx context.Context)
+
+	Propagator() propagation.TextMapPropagator
 }
 
 // Telemetry is a wrapper around the OpenTelemetry logger, meter, and tracer.
@@ -42,11 +45,12 @@ type Telemetry struct {
 	log    *zap.SugaredLogger
 	meter  otelmetric.Meter
 	tracer oteltrace.Tracer
-	cfg    config.TelemetryConfiguration
+	cfg    TelemetryConfiguration
+	prop   propagation.TextMapPropagator
 }
 
 // NewTelemetry creates a new telemetry instance.
-func NewTelemetry(ctx context.Context, cfg config.TelemetryConfiguration) (*Telemetry, error) {
+func NewTelemetry(ctx context.Context, cfg TelemetryConfiguration) (*Telemetry, error) {
 	rp := newResource(cfg.ServiceName, cfg.ServiceVersion)
 
 	lp, err := newLoggerProvider(ctx, rp)
@@ -72,6 +76,13 @@ func NewTelemetry(ctx context.Context, cfg config.TelemetryConfiguration) (*Tele
 		return nil, fmt.Errorf("failed to create tracer: %w", err)
 	}
 	tracer := tp.Tracer(cfg.ServiceName)
+
+	// setup W3C + Baggage propagator
+	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+	otel.SetTextMapPropagator(prop)
 
 	return &Telemetry{
 		lp:     lp,
@@ -138,6 +149,11 @@ func (t *Telemetry) MeterInt64UpDownCounter(metric Metric) (otelmetric.Int64UpDo
 func (t *Telemetry) TraceStart(ctx context.Context, name string) (context.Context, oteltrace.Span) { //nolint:ireturn
 	//nolint: spancheck
 	return t.tracer.Start(ctx, name)
+}
+
+// Propagator getter
+func (t *Telemetry) Propagator() propagation.TextMapPropagator {
+	return t.prop
 }
 
 // Shutdown shuts down the logger, meter, and tracer.

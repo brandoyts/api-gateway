@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brandoyts/api-gateway/config"
 	"github.com/brandoyts/api-gateway/internal/telemetry"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,7 +18,7 @@ func newTestProxyHandler(t *testing.T, timeout time.Duration) *ProxyHandler {
 	t.Helper()
 
 	// use noop telemetry for tests
-	telem, err := telemetry.NewNoopTelemetry(config.TelemetryConfiguration{})
+	telem, err := telemetry.NewNoopTelemetry(telemetry.TelemetryConfiguration{})
 	if err != nil {
 		t.Fatalf("failed to create noop telemetry: %v", err)
 	}

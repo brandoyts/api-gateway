@@ -1,8 +1,6 @@
-package config
+package telemetry
 
-import (
-	"github.com/spf13/viper"
-)
+import "github.com/spf13/viper"
 
 type TelemetryConfiguration struct {
 	ServiceName    string `mapstructure:"serviceName"`

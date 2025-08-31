@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/brandoyts/api-gateway/api-gateway/config"
 	"github.com/brandoyts/api-gateway/api-gateway/internal/proxy"
-	"github.com/brandoyts/api-gateway/config"
 	"github.com/brandoyts/api-gateway/internal/telemetry"
 )
 
@@ -35,7 +35,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	telemetryConfiguration, errTelemetryConfig := config.NewTelemetryConfiguration()
+	telemetryConfiguration, errTelemetryConfig := telemetry.NewTelemetryConfiguration("./config/gatewayTelemetryConfig.yml")
 	if errTelemetryConfig != nil {
 		log.Fatalf("error on reading telemetry configuration file: %v", errTelemetryConfig)
 		os.Exit(1)
