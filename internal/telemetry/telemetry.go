@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/log"
@@ -167,9 +168,29 @@ func (t *Telemetry) Shutdown(ctx context.Context) {
 func (t *Telemetry) LogRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// you can enrich this with otel trace/span too
-		t.LogInfo("start request:", r.Method, r.URL.Path)
+		// Extract context from headers (in case trace is propagated from upstream)
+		propagator := otel.GetTextMapPropagator()
+		ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+		// Start a span for request handling
+		_, span := t.tracer.Start(ctx, "HTTP "+r.Method+" "+r.URL.Path)
+		defer span.End()
+
+		// Add request attributes to the span
+		span.SetAttributes(
+			attribute.String("http.method", r.Method),
+			attribute.String("http.url", r.URL.String()),
+			attribute.String("http.path", r.URL.Path),
+		)
+
+		// Log with trace context
+		traceID := span.SpanContext().TraceID().String()
+		t.LogInfo("start request:", r.Method, r.URL.Path, "traceID:", traceID)
+
+		// Serve request
 		next.ServeHTTP(w, r)
-		t.LogInfo("end request:", r.Method, r.URL.Path)
+
+		t.LogInfo("end request:", r.Method, r.URL.Path, "traceID:", traceID)
 	})
 }
 

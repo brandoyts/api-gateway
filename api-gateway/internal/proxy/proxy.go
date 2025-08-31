@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/brandoyts/api-gateway/internal/telemetry"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -42,7 +43,9 @@ func (p *ProxyHandler) AddRoute(prefix string, backendUrl string) error {
 func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
-	ctx, span := p.Telemetry.TraceStart(r.Context(), "APIGatewayProxy")
+	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+	ctx, span := p.Telemetry.TraceStart(ctx, "APIGatewayProxy")
 	defer span.End()
 
 	var targetUrl *url.URL
@@ -69,7 +72,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//  inject trace context into outbound request headers
-	p.Telemetry.Propagator().Inject(ctx, propagation.HeaderCarrier(proxyRequest.Header))
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(proxyRequest.Header))
 
 	// send request to backend
 	proxyResponse, err := p.Client.Do(proxyRequest)
