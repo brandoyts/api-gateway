@@ -3,7 +3,7 @@ requestTimeout: 10s
 routes:
   - name: User Service
     prefix: /user
-    backendUrl: http://localhost:6001
+    backendUrl: http://user:6001
 
   - name: Order Service
     prefix: /order

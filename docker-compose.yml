@@ -12,6 +12,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4317
     depends_on:
       - order
+      - user
 
   order:
     build:
@@ -20,6 +21,18 @@ services:
     container_name: order-service
     ports:
       - 6002:6002
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4317
+    depends_on:
+      - lgtm
+
+  user:
+    build:
+      context: .
+      dockerfile: ./microservices/user/Dockerfile
+    container_name: user-service
+    ports:
+      - 6001:6001
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4317
     depends_on:

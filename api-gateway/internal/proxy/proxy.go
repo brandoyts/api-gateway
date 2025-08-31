@@ -45,7 +45,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
-	ctx, span := p.Telemetry.TraceStart(ctx, "APIGatewayProxy")
+	ctx, span := p.Telemetry.TraceStart(ctx, "api gateway request")
 	defer span.End()
 
 	var targetUrl *url.URL

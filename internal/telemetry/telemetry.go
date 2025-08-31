@@ -185,12 +185,12 @@ func (t *Telemetry) LogRequest(next http.Handler) http.Handler {
 
 		// Log with trace context
 		traceID := span.SpanContext().TraceID().String()
-		t.LogInfo("start request:", r.Method, r.URL.Path, "traceID:", traceID)
+		t.LogInfo("client start request:", r.Method, r.URL.Path, "traceID:", traceID)
 
 		// Serve request
 		next.ServeHTTP(w, r)
 
-		t.LogInfo("end request:", r.Method, r.URL.Path, "traceID:", traceID)
+		t.LogInfo("client end request:", r.Method, r.URL.Path, "traceID:", traceID)
 	})
 }
 

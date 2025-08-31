@@ -1,0 +1,3 @@
+serviceName: user-service
+serviceVersion: 0.0.1
+telemetryEnabled: true

@@ -17,7 +17,7 @@ func main() {
 	ctx := context.Background()
 
 	// Load telemetry config
-	telemetryConfiguration, err := telemetry.NewTelemetryConfiguration("./config/orderTelemetryConfig.yml")
+	telemetryConfiguration, err := telemetry.NewTelemetryConfiguration("./config/userTelemetryConfig.yml")
 	if err != nil {
 		panic("error reading telemetry configuration file: " + err.Error())
 	}
@@ -25,20 +25,19 @@ func main() {
 	// Init telemetry
 	telem, err = telemetry.NewTelemetry(ctx, *telemetryConfiguration)
 	if err != nil {
-		panic("failed to create order service telemetry: " + err.Error())
+		panic("failed to create user service telemetry: " + err.Error())
 	}
 	defer telem.Shutdown(ctx)
 
 	// Register handlers
 	mux := http.NewServeMux()
-	mux.Handle("/create", http.HandlerFunc(orderCreateHandler))
-	mux.Handle("/cancel", http.HandlerFunc(orderCancelHandler))
+	mux.Handle("/profile", http.HandlerFunc(profileHandler))
 
 	// Wrap the mux with telemetry tracing middleware
 	wrappedMux := telemetryMiddleware(telem, telemetryConfiguration.ServiceName, mux)
 
-	addr := ":6002"
-	telem.LogInfo("🚀 order service started on port", addr)
+	addr := ":6001"
+	telem.LogInfo("🚀 user service started on port", addr)
 	if err := http.ListenAndServe(addr, wrappedMux); err != nil {
 		telem.LogErrorln("server failed:", err)
 		os.Exit(1)
@@ -46,14 +45,9 @@ func main() {
 }
 
 // Handlers
-func orderCreateHandler(w http.ResponseWriter, r *http.Request) {
-	telem.LogInfo("handling /create request")
-	w.Write([]byte("order service: create\n"))
-}
-
-func orderCancelHandler(w http.ResponseWriter, r *http.Request) {
-	telem.LogInfo("handling /cancel request")
-	w.Write([]byte("order service: cancel\n"))
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+	telem.LogInfo("handling /profile request")
+	w.Write([]byte("user service: profile\n"))
 }
 
 // telemetryMiddleware extracts trace context and starts a new span for each request
