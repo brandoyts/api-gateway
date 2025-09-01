@@ -10,6 +10,8 @@ import (
 
 	"github.com/brandoyts/api-gateway/internal/telemetry"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -43,10 +45,15 @@ func (p *ProxyHandler) AddRoute(prefix string, backendUrl string) error {
 func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
-	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
-
-	ctx, span := p.Telemetry.TraceStart(ctx, "api gateway request")
+	ctx, span := p.Telemetry.TraceStart(r.Context(), "api_gateway_request")
 	defer span.End()
+
+	// Add request attributes to the span
+	span.SetAttributes(
+		attribute.String("http.method", r.Method),
+		attribute.String("http.url", r.URL.String()),
+		attribute.String("http.path", r.URL.Path),
+	)
 
 	var targetUrl *url.URL
 	var longestPrefix string
@@ -59,15 +66,25 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if targetUrl == nil {
-		http.Error(w, "Service not found", http.StatusNotFound)
-		p.Telemetry.LogInfo("No route found for %s", r.URL.Path)
+		p.Telemetry.LogErrorln(ErrServiceNotFound, r.URL.Path)
+		span.RecordError(ErrServiceNotFound)
+		span.SetStatus(codes.Error, ErrServiceNotFound.Error())
+		span.SetAttributes(
+			attribute.String("http.response.status_code", string(rune(http.StatusNotFound))),
+		)
+		http.Error(w, ErrServiceNotFound.Error(), http.StatusNotFound)
 		return
 	}
 
 	proxyRequest, err := p.createProxyRequest(r, targetUrl, longestPrefix)
 	if err != nil {
-		http.Error(w, "Error creating proxy request", http.StatusInternalServerError)
-		p.Telemetry.LogInfo("Error creating proxy request: %v", err)
+		p.Telemetry.LogErrorln(ErrCreateProxyRequest, err)
+		span.RecordError(ErrCreateProxyRequest)
+		span.SetStatus(codes.Error, ErrCreateProxyRequest.Error())
+		span.SetAttributes(
+			attribute.String("http.response.status_code", string(rune(http.StatusInternalServerError))),
+		)
+		http.Error(w, ErrCreateProxyRequest.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -77,8 +94,13 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// send request to backend
 	proxyResponse, err := p.Client.Do(proxyRequest)
 	if err != nil {
-		http.Error(w, "Backend error", http.StatusBadGateway)
-		p.Telemetry.LogInfo("Backend error for %s: %v", proxyRequest.URL.String(), err)
+		p.Telemetry.LogErrorln(ErrBackendResponse, proxyRequest.URL.String(), err)
+		span.RecordError(ErrBackendResponse)
+		span.SetStatus(codes.Error, ErrBackendResponse.Error())
+		span.SetAttributes(
+			attribute.String("http.response.status_code", string(rune(http.StatusBadGateway))),
+		)
+		http.Error(w, ErrBackendResponse.Error(), http.StatusBadGateway)
 		return
 	}
 	defer proxyResponse.Body.Close()
@@ -90,11 +112,22 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if proxyResponse.StatusCode >= http.StatusBadRequest {
+		p.Telemetry.LogErrorln(ErrRouteNotExist, r.URL.Path)
+		span.RecordError(ErrRouteNotExist)
+		span.SetStatus(codes.Error, ErrRouteNotExist.Error())
+		span.SetAttributes(
+			attribute.String("http.response.status_code", string(rune(http.StatusNotFound))),
+		)
+		http.Error(w, ErrRouteNotExist.Error(), http.StatusNotFound)
+		return
+	}
+
 	w.WriteHeader(proxyResponse.StatusCode)
 	io.Copy(w, proxyResponse.Body)
 
-	p.Telemetry.LogInfo(
-		"Proxy request: %s %s -> %s, status: %d, latency: %v",
+	p.Telemetry.LogInfof(
+		"Proxy request: %v %v -> %v, status: %v, latency: %v",
 		r.Method,
 		r.URL.Path,
 		targetUrl.String(),

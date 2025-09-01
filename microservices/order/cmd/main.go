@@ -47,12 +47,23 @@ func main() {
 
 // Handlers
 func orderCreateHandler(w http.ResponseWriter, r *http.Request) {
+	_, span := telem.TraceStart(r.Context(), "order_service_create")
+	defer span.End()
+
 	telem.LogInfo("handling /create request")
+
+	span.AddEvent("order_created")
+
 	w.Write([]byte("order service: create\n"))
 }
 
 func orderCancelHandler(w http.ResponseWriter, r *http.Request) {
+	_, span := telem.TraceStart(r.Context(), "order_service_cancel")
+	defer span.End()
+
 	telem.LogInfo("handling /cancel request")
+
+	span.AddEvent("order_canceled")
 	w.Write([]byte("order service: cancel\n"))
 }
 
@@ -63,7 +74,7 @@ func telemetryMiddleware(telem *telemetry.Telemetry, serviceName string, next ht
 		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
 		// Start span
-		ctx, span := telem.TraceStart(ctx, r.Method+" "+r.URL.Path)
+		ctx, span := telem.TraceStart(ctx, "order_service")
 		defer span.End()
 
 		// Add useful attributes to the span

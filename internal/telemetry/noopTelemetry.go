@@ -31,8 +31,14 @@ func (t *NoopTelemetry) GetServiceName() string { return t.serviceName }
 // LogInfo logs nothing.
 func (t *NoopTelemetry) LogInfo(args ...interface{}) {}
 
+// LogInfof logs nothing.
+func (t *NoopTelemetry) LogInfof(template string, args ...interface{}) {}
+
 // LogErrorln logs nothing.
 func (t *NoopTelemetry) LogErrorln(args ...interface{}) {}
+
+// LogErrorln logs nothing.
+func (t *NoopTelemetry) LogErrorf(template string, args ...interface{}) {}
 
 // LogFatalln logs nothing, then exits.
 func (t *NoopTelemetry) LogFatalln(args ...interface{}) {

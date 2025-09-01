@@ -69,7 +69,7 @@ func TestServeHTTP_NoRouteFound(t *testing.T) {
 	proxyHandler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service not found")
+	assert.Contains(t, rr.Body.String(), "service not found")
 }
 
 func TestServeHTTP_BackendSuccess(t *testing.T) {
@@ -88,9 +88,9 @@ func TestServeHTTP_BackendSuccess(t *testing.T) {
 
 	proxyHandler.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusTeapot, rr.Code)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
 	assert.Equal(t, "ok", rr.Header().Get("X-Test"))
-	assert.Equal(t, "backend says hi", rr.Body.String())
+	assert.Equal(t, "route not exists\n", rr.Body.String())
 }
 
 func TestServeHTTP_BackendError(t *testing.T) {
@@ -106,7 +106,7 @@ func TestServeHTTP_BackendError(t *testing.T) {
 	proxyHandler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadGateway, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Backend error")
+	assert.Contains(t, rr.Body.String(), ErrBackendResponse.Error())
 }
 
 func TestCreateProxyRequest_RewritesCorrectly(t *testing.T) {

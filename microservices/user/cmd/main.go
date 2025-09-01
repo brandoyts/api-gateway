@@ -57,7 +57,7 @@ func telemetryMiddleware(telem *telemetry.Telemetry, serviceName string, next ht
 		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
 		// Start span
-		ctx, span := telem.TraceStart(ctx, r.Method+" "+r.URL.Path)
+		ctx, span := telem.TraceStart(ctx, "user_service")
 		defer span.End()
 
 		// Add useful attributes to the span

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -44,7 +43,7 @@ func main() {
 	// init telemetry
 	telem, err := telemetry.NewTelemetry(ctx, *telemetryConfiguration)
 	if err != nil {
-		fmt.Println("failed to create telemetry:", err)
+		log.Fatalf("failed to create telemetry: %v", err)
 		os.Exit(1)
 	}
 	defer telem.Shutdown(ctx)
